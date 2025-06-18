@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>OCR PROJECT</title>
+  <link rel="stylesheet" href="./index.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.13.216/pdf.min.js"></script>
+</head>
+<body>
+  <header>
+    <nav>
+      <div class="logo">OCR</div>
+      <div class="nav-links">
+        <a href="#">Home</a>
+        <a href="#">About</a>
+        <a href="#">Service</a>
+        <a href="#">Queries</a>
+      </div>
+    </nav>
+  </header>
+
+  <div class="main">
+    <h2><b>Welcome to OCR Web Application</b></h2>
+    <p>Get your optically recognized Text here!</p><br>
+    <div class="file-content">
+      <h2 class="file-head">Upload Your File:</h2><br>
+      <input type="file" id="fileInput" accept="image/*,.pdf"><br><br><br>
+      <button id="btn" onclick="handleFile()">Extract Text</button>
+      <canvas id="pdfCanvas" style="display: none;"></canvas>
+      <pre id="output">Output will appear here...</pre>
+    </div>
+  </div>
+
+  <script>
+    async function handleFile() {
+      const file = document.getElementById('fileInput').files[0];
+      if (!file) return alert("Please choose an image or PDF.");
+      const outputEl = document.getElementById('output');
+
+      if (file.type === "application/pdf") {
+        const reader = new FileReader();
+        reader.onload = async function () {
+          const typedarray = new Uint8Array(this.result);
+          const pdf = await pdfjsLib.getDocument(typedarray).promise;
+          let fullText = "";
+
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const viewport = page.getViewport({ scale: 2 });
+            const canvas = document.getElementById("pdfCanvas");
+            const context = canvas.getContext("2d");
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+
+            await page.render({ canvasContext: context, viewport }).promise;
+            const result = await Tesseract.recognize(canvas, 'eng');
+            fullText += `--- Page ${i} ---\n${result.data.text}\n\n`;
+          }
+
+          const resultJSON = {
+            filename: file.name,
+            type: "PDF",
+            text: fullText.trim()
+          };
+
+          const formattedText = resultJSON.text.replace(/\n/g, "<br>");
+          outputEl.innerHTML = `
+            <b>Filename:</b> ${resultJSON.filename}<br>
+            <b>Type:</b> ${resultJSON.type}<br><br>
+            <div style="border:1px solid #ccc; padding:10px; max-height:400px;overflow:auto; border-radius:12px; color:green;">
+              <b>Extracted Text:</b><br>${formattedText}
+            </div>
+          `;
+        };
+        reader.readAsArrayBuffer(file);
+
+      } else if (file.type.startsWith("image/")) {
+        const result = await Tesseract.recognize(file, 'eng');
+        const resultJSON = {
+          filename: file.name,
+          type: "Image",
+          text: result.data.text.trim()
+        };
+        const formattedText = resultJSON.text.replace(/\n/g, "<br>");
+        outputEl.innerHTML = `
+          <b>Filename:</b> ${resultJSON.filename}<br>
+          <b>Type:</b> ${resultJSON.type}<br><br>
+          <div style="border:1px solid #ccc; padding:10px; max-height:400px;overflow:auto; border-radius:12px; color:green;">
+            <b>Extracted Text:</b><br>${formattedText}
+          </div>
+        `;
+      } else {
+        alert("Unsupported file type. Please upload an image or PDF.");
+      }
+    }
+  </script>
+</body>
+</html>
